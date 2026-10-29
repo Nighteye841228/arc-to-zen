@@ -318,7 +318,8 @@ def sync_containers(
             else arc_favorite_profiles(arc_profile)
         )
     ]
-    if {user_context_id for _, user_context_id in essential_containers} - {NO_CONTAINER}:
+    # Arc shows only a profile's own Favorites in its spaces; Zen does the same per container with this pref.
+    if (set(space_containers.values()) | {c for _, c in essential_containers}) - {NO_CONTAINER}:
         changed = set_user_prefs(profile, dict.fromkeys(SEPARATE_ESSENTIALS_PREFS, True), create_backups)
         logger.info(f"prefs.js: {'enabled' if changed else 'already has'} per-container Essentials")
 
