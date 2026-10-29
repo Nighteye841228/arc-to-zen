@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
 
+from .containers import sync_containers
+from .cookies import migrate_cookies
 from .extract import ArcPinnedTabExtractor
 from .favicons import migrate_favicons
 from .folder_states import sync_folder_states
@@ -33,6 +35,9 @@ class MigrationOptions:
     folder_states: bool = True
     workspace_icons: bool = True
     workspace_themes: bool = True
+    containers: bool = True
+    cookies: bool = True
+    default_profile_container: bool = False
     skip_orphaned: bool = True
     create_backups: bool = True
     auto_close_zen: bool = True
@@ -176,6 +181,31 @@ def migration_steps(options: MigrationOptions, export_file: Path) -> list[Migrat
                 lambda: sync_workspace_themes(
                     arc_profile=options.arc_profile,
                     zen_profile=options.zen_profile,
+                    create_backups=options.create_backups,
+                ),
+            ),
+        ),
+        (
+            options.containers,
+            MigrationStep(
+                "Map Arc profiles to Zen containers",
+                lambda: sync_containers(
+                    arc_profile=options.arc_profile,
+                    zen_profile=options.zen_profile,
+                    default_profile_container=options.default_profile_container,
+                    create_backups=options.create_backups,
+                ),
+            ),
+        ),
+        (
+            options.cookies,
+            MigrationStep(
+                "Import cookies",
+                lambda: migrate_cookies(
+                    arc_profile=options.arc_profile,
+                    zen_profile=options.zen_profile,
+                    use_containers=options.containers,
+                    default_profile_container=options.default_profile_container,
                     create_backups=options.create_backups,
                 ),
             ),

@@ -25,6 +25,8 @@ Pick the archive for your OS:
 - 👁️ pinned-folder open/closed state
 - 🎨 workspace icons and colors/themes
 - 🌐 cached favicons
+- 🧳 Arc profiles as Zen containers (the Default profile stays without a container)
+- 🍪 cookies, imported into the matching container (macOS; asks for keychain access)
 
 ## GUI
 
@@ -90,6 +92,9 @@ Useful switches:
 - `--no-workspace-icons`
 - `--no-workspace-themes`
 - `--nuke-only`
+- `--no-containers`
+- `--no-cookies`
+- `--default-profile-container` also puts the Arc Default profile into a container
 
 ## Profiles
 

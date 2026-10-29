@@ -446,6 +446,13 @@ class MainWindow(QMainWindow):
         self.workspace_icons_check.setChecked(True)
         self.workspace_themes_check = QCheckBox("Workspace colors/themes")
         self.workspace_themes_check.setChecked(True)
+        self.containers_check = QCheckBox("Arc profiles as Zen containers")
+        self.containers_check.setChecked(True)
+        self.containers_check.setToolTip("Creates one Zen container per Arc profile used by a space. The Default profile stays without a container.")
+        self.cookies_check = QCheckBox("Cookies (logins)")
+        self.cookies_check.setChecked(sys.platform == "darwin")
+        self.cookies_check.setEnabled(sys.platform == "darwin")
+        self.cookies_check.setToolTip("Decrypts Arc cookies with the Arc Safe Storage keychain item. macOS asks you to allow access.")
         self.skip_orphaned_check = QCheckBox('Skip "Orphaned" workspace')
         self.skip_orphaned_check.setChecked(True)
         self.skip_orphaned_check.setToolTip("Avoids creating a synthetic Orphaned workspace; unmatched Essentials are kept in the first workspace.")
@@ -499,6 +506,8 @@ class MainWindow(QMainWindow):
             self.folder_states_check,
             self.workspace_icons_check,
             self.workspace_themes_check,
+            self.containers_check,
+            self.cookies_check,
         ):
             options_layout.addWidget(checkbox)
 
@@ -593,6 +602,8 @@ class MainWindow(QMainWindow):
             folder_states=self.folder_states_check.isChecked(),
             workspace_icons=self.workspace_icons_check.isChecked(),
             workspace_themes=self.workspace_themes_check.isChecked(),
+            containers=self.containers_check.isChecked(),
+            cookies=self.cookies_check.isChecked(),
             skip_orphaned=self.skip_orphaned_check.isChecked(),
             create_backups=self.backups_check.isChecked(),
             auto_close_zen=self.auto_close_zen_check.isChecked(),

@@ -58,6 +58,17 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Do not sync workspace colors/themes.",
     )
+    parser.add_argument(
+        "--no-containers",
+        action="store_true",
+        help="Do not map Arc profiles to Zen containers.",
+    )
+    parser.add_argument("--no-cookies", action="store_true", help="Do not import Arc cookies (macOS only).")
+    parser.add_argument(
+        "--default-profile-container",
+        action="store_true",
+        help="Also put the Arc Default profile into its own container instead of no container.",
+    )
     return parser.parse_args()
 
 
@@ -78,6 +89,9 @@ def main() -> int:
         folder_states=not args.no_folder_states,
         workspace_icons=not args.no_workspace_icons,
         workspace_themes=not args.no_workspace_themes,
+        containers=not args.no_containers,
+        cookies=not args.no_cookies,
+        default_profile_container=args.default_profile_container,
         skip_orphaned=not args.include_orphaned,
         create_backups=not args.no_backups,
     )

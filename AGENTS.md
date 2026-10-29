@@ -117,6 +117,19 @@ Use `--nuke-only` to perform only that cleanup. Backups are controlled by
 - `src/arc2zen/workspace_icons.py`
   - Maps Arc emoji icons and built-in icon names into Zen workspace icons.
 
+- `src/arc2zen/containers.py`
+  - Maps each Arc profile used by a space to a Zen container in
+    `containers.json`. The Arc `Default` profile maps to no container unless
+    `default_profile_container` is set.
+  - Sets workspace `containerTabId` and tab `userContextId` by workspace name.
+
+- `src/arc2zen/cookies.py`
+  - Decrypts Arc Chromium `v10` cookies with the "Arc Safe Storage" keychain
+    password (macOS only) and strips the SHA256 host prefix (cookie DB v24+).
+  - Writes `cookies.sqlite` `moz_cookies` (schema 16+: expiry in ms) with
+    `originAttributes` set to the profile's container and CHIPS partition key.
+  - Session cookies get a 30-day expiry because Firefox does not store them.
+
 - `src/arc2zen/workspace_themes.py`
   - Converts Arc gradient or single-color workspace themes into Zen workspace
     `theme.gradientColors`, `opacity`, and `texture`.
@@ -128,6 +141,8 @@ Arc:
 - `~/Library/Application Support/Arc/StorableSidebar.json`
 - `~/Library/Application Support/Arc/StorableWindows.json`
 - `~/Library/Application Support/Arc/User Data/Default/Favicons`
+- `~/Library/Application Support/Arc/User Data/Local State` (profile names)
+- `~/Library/Application Support/Arc/User Data/<profile>/Cookies`
 
 Zen:
 
@@ -135,6 +150,8 @@ Zen:
 - `~/Library/Application Support/zen/Profiles/<profile>/sessionstore.jsonlz4`
 - `~/Library/Application Support/zen/Profiles/<profile>/sessionstore-backups/recovery.jsonlz4`
 - `~/Library/Application Support/zen/Profiles/<profile>/places.sqlite`
+- `~/Library/Application Support/zen/Profiles/<profile>/containers.json`
+- `~/Library/Application Support/zen/Profiles/<profile>/cookies.sqlite`
 
 ## Implementation Notes
 
