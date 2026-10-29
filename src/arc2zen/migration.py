@@ -10,6 +10,7 @@ from typing import Callable, Iterable
 
 from .containers import sync_containers
 from .cookies import migrate_cookies
+from .extensions import migrate_extensions
 from .extract import ArcPinnedTabExtractor
 from .favicons import migrate_favicons
 from .folder_states import sync_folder_states
@@ -37,7 +38,9 @@ class MigrationOptions:
     workspace_themes: bool = True
     containers: bool = True
     cookies: bool = True
+    extensions: bool = True
     default_profile_container: bool = False
+    space_profile_overrides: dict[str, str] | None = None
     skip_orphaned: bool = True
     create_backups: bool = True
     auto_close_zen: bool = True
@@ -194,6 +197,8 @@ def migration_steps(options: MigrationOptions, export_file: Path) -> list[Migrat
                     zen_profile=options.zen_profile,
                     default_profile_container=options.default_profile_container,
                     create_backups=options.create_backups,
+                    space_profile_overrides=options.space_profile_overrides,
+                    export_file=export_file,
                 ),
             ),
         ),
@@ -207,6 +212,18 @@ def migration_steps(options: MigrationOptions, export_file: Path) -> list[Migrat
                     use_containers=options.containers,
                     default_profile_container=options.default_profile_container,
                     create_backups=options.create_backups,
+                    space_profile_overrides=options.space_profile_overrides,
+                ),
+            ),
+        ),
+        (
+            options.extensions,
+            MigrationStep(
+                "Install Firefox versions of Arc extensions",
+                lambda: migrate_extensions(
+                    arc_profile=options.arc_profile,
+                    zen_profile=options.zen_profile,
+                    space_profile_overrides=options.space_profile_overrides,
                 ),
             ),
         ),

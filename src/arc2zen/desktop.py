@@ -452,6 +452,9 @@ class MainWindow(QMainWindow):
         self.cookies_check = QCheckBox("Cookies (logins)")
         self.cookies_check.setChecked(sys.platform == "darwin")
         self.cookies_check.setEnabled(sys.platform == "darwin")
+        self.extensions_check = QCheckBox("Extensions (Firefox versions)")
+        self.extensions_check.setChecked(True)
+        self.extensions_check.setToolTip("Downloads matching add-ons from addons.mozilla.org. Zen asks to enable each one on its next start.")
         self.cookies_check.setToolTip("Decrypts Arc cookies with the Arc Safe Storage keychain item. macOS asks you to allow access.")
         self.skip_orphaned_check = QCheckBox('Skip "Orphaned" workspace')
         self.skip_orphaned_check.setChecked(True)
@@ -508,6 +511,7 @@ class MainWindow(QMainWindow):
             self.workspace_themes_check,
             self.containers_check,
             self.cookies_check,
+            self.extensions_check,
         ):
             options_layout.addWidget(checkbox)
 
@@ -604,6 +608,7 @@ class MainWindow(QMainWindow):
             workspace_themes=self.workspace_themes_check.isChecked(),
             containers=self.containers_check.isChecked(),
             cookies=self.cookies_check.isChecked(),
+            extensions=self.extensions_check.isChecked(),
             skip_orphaned=self.skip_orphaned_check.isChecked(),
             create_backups=self.backups_check.isChecked(),
             auto_close_zen=self.auto_close_zen_check.isChecked(),

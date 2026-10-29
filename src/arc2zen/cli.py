@@ -7,6 +7,7 @@ import argparse
 import logging
 from pathlib import Path
 
+from .containers import add_space_profile_argument, parse_space_profiles
 from .migration import MigrationOptions, nuke_zen_profile_only, run_migration
 
 
@@ -63,12 +64,18 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Do not map Arc profiles to Zen containers.",
     )
+    parser.add_argument(
+        "--no-extensions",
+        action="store_true",
+        help="Do not download Firefox versions of Arc extensions from addons.mozilla.org.",
+    )
     parser.add_argument("--no-cookies", action="store_true", help="Do not import Arc cookies (macOS only).")
     parser.add_argument(
         "--default-profile-container",
         action="store_true",
         help="Also put the Arc Default profile into its own container instead of no container.",
     )
+    add_space_profile_argument(parser)
     return parser.parse_args()
 
 
@@ -91,7 +98,9 @@ def main() -> int:
         workspace_themes=not args.no_workspace_themes,
         containers=not args.no_containers,
         cookies=not args.no_cookies,
+        extensions=not args.no_extensions,
         default_profile_container=args.default_profile_container,
+        space_profile_overrides=parse_space_profiles(args.space_profile),
         skip_orphaned=not args.include_orphaned,
         create_backups=not args.no_backups,
     )

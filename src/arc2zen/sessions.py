@@ -594,6 +594,14 @@ def import_arc_export(
     # Clear existing tabs, folders, groups (fresh start)
     reset_zen_session_state(zen_data)
 
+    if nuke:
+        # Drop workspaces Arc does not have, such as Zen's initial "Space".
+        arc_names = {space['space_name'] for space in arc_data['spaces']}
+        removed = [space['name'] for space in zen_data['spaces'] if space['name'] not in arc_names]
+        zen_data['spaces'] = [space for space in zen_data['spaces'] if space['name'] in arc_names]
+        if removed:
+            logger.info(f"🧹 Removed workspaces not in Arc: {', '.join(removed)}")
+
     # Create workspaces for Arc spaces
     base_timestamp = int(datetime.now().timestamp() * 1000)
 

@@ -20,6 +20,17 @@ from .profile_paths import resolve_arc_profile
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+ARC_DEFAULT_PROFILE = "Default"
+
+
+def arc_profile_dir(marker) -> str:
+    """Arc profile directory for a profile marker: {"default": ...} or {"custom": {"_0": {...}}}."""
+    if isinstance(marker, dict):
+        directory = marker.get('custom', {}).get('_0', {}).get('directoryBasename')
+        if isinstance(directory, str) and directory:
+            return directory
+    return ARC_DEFAULT_PROFILE
+
 @dataclass
 class ArcPinnedTab:
     """Represents a pinned tab from Arc with its folder context."""
@@ -33,6 +44,7 @@ class ArcPinnedTab:
     index: int  # Original position in Arc sidebar
     is_essential: bool = False  # True if this was an Essential tab in Arc
     is_pinned: bool = True  # False if this was a temporary/unpinned Arc tab
+    profile: Optional[str] = None  # Arc profile directory of an Essential tab
 
     def to_dict(self) -> Dict:
         """Convert to dictionary for serialization."""
@@ -118,9 +130,9 @@ class ArcPinnedTabExtractor:
                     custom_data = profile_data['custom']['_0']
                     profile = custom_data.get('directoryBasename')
 
-                # If no profile is set (Personal space), map to "Default" profile
-                if profile is None and space_name == "Personal":
-                    profile = "Default"
+                # Arc writes {"default": true} for spaces of its main profile.
+                if profile is None:
+                    profile = ARC_DEFAULT_PROFILE
 
                 # Extract color from windowTheme if available
                 color = None
@@ -425,193 +437,84 @@ class ArcPinnedTabExtractor:
         return True
 
     def _extract_essential_tabs_distributed(self, data: Dict, spaces_info: Dict) -> Dict[str, List[ArcPinnedTab]]:
-        """Extract Essential tabs from topApps containers and distribute them to appropriate spaces.
+        """Extract Arc Favorites (Zen Essentials) per Arc profile.
 
-        Essential tabs in Arc appear at the top with large icons and are stored
-        in containers with containerType.topApps rather than spaceItems.
-
-        Returns a dictionary mapping space_id -> list of Essential tabs for that space.
-        Orphaned tabs (no matching space) are stored under the "orphaned" key.
+        Arc keeps one Favorites bar per profile in the global sidebar container's
+        ``topAppsContainerIDs`` (profile marker, container id pairs). Each tab
+        keeps its Arc profile so the containers step can put it into that
+        profile's container. Favorites go to the first space of the same
+        profile, or under the "orphaned" key when no space uses that profile.
         """
-        essential_tabs_by_space = {}
-
-        # Get all items from local sidebar
-        containers = data.get('sidebar', {}).get('containers', [])
-        if len(containers) <= 1 or 'items' not in containers[1]:
+        essential_tabs_by_space: Dict[str, List[ArcPinnedTab]] = {}
+        global_container = self._global_sidebar_container(data)
+        if not global_container:
             return essential_tabs_by_space
 
-        items = containers[1]['items']
-
-        # Build items lookup (items is stored as alternating id/data pairs)
         items_lookup = {}
-        i = 0
-        while i < len(items):
-            if isinstance(items[i], str) and i + 1 < len(items):
-                item_id = items[i]
-                item_data = items[i + 1]
-                items_lookup[item_id] = item_data
-                i += 2
-            else:
-                i += 1
+        items = global_container.get('items', [])
+        for i in range(0, len(items) - 1, 2):
+            if isinstance(items[i], str) and isinstance(items[i + 1], dict):
+                items_lookup[items[i]] = items[i + 1]
 
-        # Create profile-to-space mapping for quick lookup
         profile_to_space = {}
         for space_id, space_info in spaces_info.items():
-            profile = space_info.get('profile')
-            if profile:
-                profile_to_space[profile] = space_id
+            profile_to_space.setdefault(space_info.get('profile') or ARC_DEFAULT_PROFILE, space_id)
 
-        # Look for topApps containers and map them to spaces
-        for item_id, item_data in items_lookup.items():
-            container_type = item_data.get('data', {}).get('itemContainer', {}).get('containerType', {})
+        top_apps = global_container.get('topAppsContainerIDs', [])
+        for i in range(0, len(top_apps) - 1, 2):
+            marker, container_id = top_apps[i], top_apps[i + 1]
+            if not isinstance(container_id, str):
+                continue
+            profile = arc_profile_dir(marker)
+            target_space_id = profile_to_space.get(profile, "orphaned")
+            target_space_name = spaces_info.get(target_space_id, {}).get('name', 'Orphaned')
 
-            # Check if this is a topApps container
-            if 'topApps' in container_type:
-                logger.info(f"  🔍 Found topApps container: {item_id}")
-
-                # Extract profile information from topApps container
-                topapps_data = container_type['topApps']['_0']
-                directory_basename = None
-
-                if 'custom' in topapps_data and '_0' in topapps_data['custom']:
-                    custom_data = topapps_data['custom']['_0']
-                    directory_basename = custom_data.get('directoryBasename')
-                elif 'default' in topapps_data:
-                    directory_basename = "Default"
-
-                # Get the children IDs for this topApps container first
-                children_ids = item_data.get('childrenIds', [])
-
-                # Find the corresponding space for this profile
-                target_space_id = profile_to_space.get(directory_basename, "orphaned")
-
-                # Debug: Show profile matching results
-                if target_space_id == "orphaned":
-                    logger.info(f"    📝 Profile '{directory_basename}' not found in profile_to_space mapping - trying intelligent assignment")
-                    target_space_id = self._assign_essential_tab_to_space(children_ids, items_lookup, spaces_info)
-                else:
-                    logger.info(f"    ✅ Profile '{directory_basename}' matched to space '{spaces_info.get(target_space_id, {}).get('name', target_space_id)}'")
-
-                target_space_name = spaces_info.get(target_space_id, {}).get('name', 'Essential')
-
-                # Process each Essential tab in this container
-                for idx, tab_id in enumerate(children_ids):
-                    tab_data = items_lookup.get(tab_id, {})
-                    tab_info = tab_data.get('data', {}).get('tab', {})
-
-                    if tab_info and tab_info.get('savedURL'):
-                        # Extract tab information
-                        url = tab_info.get('savedURL', '')
-                        title = tab_info.get('savedTitle', url)
-
-                        # Create ArcPinnedTab for Essential tab
-                        essential_tab = ArcPinnedTab(
-                            url=url,
-                            title=title,
-                            space_id=target_space_id,
-                            space_name=target_space_name,
-                            folder_path=[],  # Essential tabs go to root of workspace
-                            tab_id=tab_id,
-                            parent_id=item_id,  # Parent is the topApps container
-                            index=idx,
-                            is_essential=True  # Mark as Essential tab
-                        )
-
-                        # Add to the appropriate space
-                        if target_space_id not in essential_tabs_by_space:
-                            essential_tabs_by_space[target_space_id] = []
-                        essential_tabs_by_space[target_space_id].append(essential_tab)
-
-                        if target_space_id == "orphaned":
-                            logger.info(f"    📦 Orphaned Essential tab: {title} (Profile: {directory_basename})")
-                        else:
-                            logger.info(f"    ⭐ Essential tab for {target_space_name}: {title}")
+            for idx, (tab_id, item) in enumerate(self._flatten_tab_items(container_id, items_lookup)):
+                tab_info = item['data']['tab']
+                url = tab_info.get('savedURL', '')
+                title = tab_info.get('savedTitle') or item.get('title') or url
+                essential_tabs_by_space.setdefault(target_space_id, []).append(
+                    ArcPinnedTab(
+                        url=url,
+                        title=title,
+                        space_id=target_space_id,
+                        space_name=target_space_name,
+                        folder_path=[],
+                        tab_id=tab_id,
+                        parent_id=container_id,
+                        index=idx,
+                        is_essential=True,
+                        profile=profile,
+                    )
+                )
+                logger.info(f"    ⭐ Essential tab ({profile}) -> {target_space_name}: {title}")
 
         return essential_tabs_by_space
 
-    def _assign_essential_tab_to_space(self, children_ids: List[str], items_lookup: Dict, spaces_info: Dict) -> str:
-        """Intelligently assign orphaned essential tabs to spaces based on URL patterns and content."""
+    @staticmethod
+    def _global_sidebar_container(data: Dict) -> Optional[Dict]:
+        containers = data.get('sidebar', {}).get('containers', [])
+        for i in range(0, len(containers) - 1, 2):
+            if isinstance(containers[i], dict) and 'global' in containers[i] and isinstance(containers[i + 1], dict):
+                return containers[i + 1]
+        return containers[1] if len(containers) > 1 and isinstance(containers[1], dict) else None
 
-        if not children_ids:
-            return "orphaned"
-
-        # Analyze URLs in the essential tabs to find patterns
-        tab_urls = []
-        tab_titles = []
-        debug_content = []
-
-        for tab_id in children_ids:
-            tab_data = items_lookup.get(tab_id, {})
-            tab_info = tab_data.get('data', {}).get('tab', {})
-
-            if tab_info:
-                url = tab_info.get('savedURL', '')
-                title = tab_info.get('savedTitle', '')
-                if url:
-                    tab_urls.append(url.lower())
-                    debug_content.append(f"URL: {url}")
-                if title:
-                    tab_titles.append(title.lower())
-                    debug_content.append(f"Title: {title}")
-
-        # Debug: Show what content we're analyzing
-        logger.info(f"    🔍 Analyzing orphaned essential tabs content:")
-        for content in debug_content[:5]:  # Show first 5 entries
-            logger.info(f"      - {content}")
-        if len(debug_content) > 5:
-            logger.info(f"      - ... and {len(debug_content) - 5} more")
-
-        # Check for space-specific patterns with more conservative matching
-        # Count matches for each space to find the best fit
-        space_scores = {}
-
-        for space_id, space_info in spaces_info.items():
-            space_name = space_info['name'].lower()
-            score = 0
-
-            # Special patterns for known spaces with higher confidence
-            if space_name == 'remoterlabs':
-                remoter_patterns = ['@remoterlabs.com', 'github.com/remoterlabs', 'remoterlabs/']
-                for pattern in remoter_patterns:
-                    score += sum(1 for content in tab_urls + tab_titles if pattern in content) * 3
-                # Lower weight for general 'remoter' matches
-                score += sum(1 for content in tab_urls + tab_titles if 'remoterlabs' in content and '@remoterlabs.com' not in content)
-
-            elif space_name == 'gavelmatch.com':
-                gavel_patterns = ['gavelmatch.com', 'gavelmatch.lovable.com']
-                for pattern in gavel_patterns:
-                    score += sum(1 for content in tab_urls + tab_titles if pattern in content) * 3
-                # Lower weight for general lovable matches
-                score += sum(1 for content in tab_urls + tab_titles if 'gavelmatch' in content and 'gavelmatch.com' not in content)
-
-            elif space_name == 'willowtree':
-                # Be very conservative with WillowTree - only assign from legitimate containers
-                # Don't do intelligent assignment for WillowTree to avoid cross-profile contamination
-                score = 0  # Disable intelligent assignment for WillowTree entirely
-
-            else:
-                # For other spaces, use exact space name matching in URLs (not titles to avoid false positives)
-                score += sum(1 for url in tab_urls if space_name in url)
-
-            if score > 0:
-                space_scores[space_id] = score
-
-        # Return the space with the highest score, but only if it's a strong match
-        if space_scores:
-            best_space_id = max(space_scores.keys(), key=lambda s: space_scores[s])
-            best_score = space_scores[best_space_id]
-            best_space_name = spaces_info[best_space_id]['name']
-
-            # Be much more conservative - only assign if there's a very strong, unambiguous match
-            # Require a minimum score of 4 to avoid false positives from cross-profile contamination
-            if best_score >= 4:
-                logger.info(f"    🎯 Assigning essential tabs to '{best_space_name}' (strong match, score: {best_score})")
-                return best_space_id
-            else:
-                logger.info(f"    🔒 Score {best_score} too low for '{best_space_name}' - keeping orphaned to avoid cross-profile contamination")
-
-        # No intelligent match found
-        return "orphaned"
+    def _flatten_tab_items(self, parent_id: str, items_lookup: Dict, depth: int = 0) -> List[tuple]:
+        """Tabs below a container in Arc's order, descending into folders and split views."""
+        if depth > 32:
+            return []
+        parent = items_lookup.get(parent_id, {})
+        children = [items_lookup[i] for i in parent.get('childrenIds', []) if i in items_lookup]
+        if not children:
+            children = [item for item in items_lookup.values() if item.get('parentID') == parent_id]
+        result = []
+        for item in children:
+            item_data = item.get('data', {})
+            if item_data.get('tab', {}).get('savedURL'):
+                result.append((item.get('id'), item))
+            elif 'list' in item_data or 'splitView' in item_data:
+                result.extend(self._flatten_tab_items(item.get('id'), items_lookup, depth + 1))
+        return result
 
     def _item_belongs_to_space(self, item_id: str, target_space_id: str, items_lookup: Dict, data: Dict) -> bool:
         """Check if an item belongs to a specific space."""

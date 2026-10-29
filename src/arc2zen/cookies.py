@@ -219,6 +219,7 @@ def migrate_cookies(
     use_containers: bool = True,
     default_profile_container: bool = False,
     create_backups: bool = True,
+    space_profile_overrides: Optional[Dict[str, str]] = None,
 ) -> bool:
     """Import cookies from every Arc profile used by a space into Zen."""
     profile = resolve_zen_profile(zen_profile)
@@ -229,7 +230,11 @@ def migrate_cookies(
 
     if use_containers:
         profile_containers = ensure_zen_containers(
-            arc_profile, profile, default_profile_container=default_profile_container, create_backups=create_backups
+            arc_profile,
+            profile,
+            default_profile_container=default_profile_container,
+            create_backups=create_backups,
+            space_profile_overrides=space_profile_overrides,
         )
     else:
         profile_containers = {arc_dir: NO_CONTAINER for arc_dir in set(arc_space_profiles(arc_profile).values())}

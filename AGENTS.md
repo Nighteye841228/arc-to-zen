@@ -122,6 +122,15 @@ Use `--nuke-only` to perform only that cleanup. Backups are controlled by
     `containers.json`. The Arc `Default` profile maps to no container unless
     `default_profile_container` is set.
   - Sets workspace `containerTabId` and tab `userContextId` by workspace name.
+  - Arc Favorites live per profile in the global sidebar container's
+    `topAppsContainerIDs`; each Essential gets its profile's container, and
+    `zen.workspaces.separate-essentials` is enabled in `prefs.js` so Zen shows
+    Essentials per container (Zen ignores `zenWorkspace` for Essentials).
+
+- `src/arc2zen/extensions.py`
+  - Finds Firefox versions of enabled Arc extensions on AMO (browser-mappings
+    API, then name/homepage search) and downloads the XPIs into the Zen
+    profile's `extensions` folder.
 
 - `src/arc2zen/cookies.py`
   - Decrypts Arc Chromium `v10` cookies with the "Arc Safe Storage" keychain

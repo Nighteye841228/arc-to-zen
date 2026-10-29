@@ -25,7 +25,9 @@ Pick the archive for your OS:
 - 👁️ pinned-folder open/closed state
 - 🎨 workspace icons and colors/themes
 - 🌐 cached favicons
-- 🧳 Arc profiles as Zen containers (the Default profile stays without a container)
+- 🧳 Arc profiles as Zen containers (the Default profile stays without a container);
+  Essentials keep their Arc profile and are shown per container
+- 🧩 extensions: Firefox versions from addons.mozilla.org (Zen asks to enable them)
 - 🍪 cookies, imported into the matching container (macOS; asks for keychain access)
 
 ## GUI
@@ -95,6 +97,8 @@ Useful switches:
 - `--no-containers`
 - `--no-cookies`
 - `--default-profile-container` also puts the Arc Default profile into a container
+- `--space-profile SPACE=PROFILE` puts a space into another Arc profile's container
+- `--no-extensions`
 
 ## Profiles
 
